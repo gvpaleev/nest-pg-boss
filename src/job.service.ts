@@ -4,7 +4,8 @@ import {
   Injectable,
   SetMetadata,
 } from "@nestjs/common";
-import * as PGBoss from "pg-boss";
+import { PgBoss } from "pg-boss";
+import type * as PgBossTypes from "pg-boss";
 import { HandlerMetadata } from "./interfaces/handler-metadata.interface";
 import { PG_BOSS_JOB_METADATA } from "./pg-boss.constants";
 import { getJobToken } from "./utils";
@@ -13,19 +14,19 @@ import { getJobToken } from "./utils";
 export class JobService<JobData extends object> {
   constructor(
     private readonly name: string,
-    private readonly pgBoss: PGBoss,
+    private readonly pgBoss: PgBoss,
   ) {}
 
   async send(
     data: JobData,
-    options: PGBoss.SendOptions,
+    options: PgBossTypes.SendOptions,
   ): Promise<string | null> {
     return this.pgBoss.send(this.name, data, options);
   }
 
   async sendAfter(
     data: JobData,
-    options: PGBoss.SendOptions,
+    options: PgBossTypes.SendOptions,
     date: Date | string | number,
   ): Promise<string | null> {
     // sendAfter has three overloads for all date variants we accept
@@ -34,22 +35,22 @@ export class JobService<JobData extends object> {
 
   async sendOnce(
     data: JobData,
-    options: PGBoss.SendOptions,
+    options: PgBossTypes.SendOptions,
     key: string,
   ): Promise<string | null> {
-    return this.pgBoss.sendOnce(this.name, data, options, key);
+    return this.pgBoss.send(this.name, data, { ...options, singletonKey: key });
   }
 
   async sendSingleton(
     data: JobData,
-    options: PGBoss.SendOptions,
+    options: PgBossTypes.SendOptions,
   ): Promise<string | null> {
-    return this.pgBoss.sendSingleton(this.name, data, options);
+    return this.pgBoss.send(this.name, data, { ...options, singletonKey: this.name });
   }
 
   async sendThrottled(
     data: JobData,
-    options: PGBoss.SendOptions,
+    options: PgBossTypes.SendOptions,
     seconds: number,
     key?: string,
   ): Promise<string | null> {
@@ -61,7 +62,7 @@ export class JobService<JobData extends object> {
 
   async sendDebounced(
     data: JobData,
-    options: PGBoss.SendOptions,
+    options: PgBossTypes.SendOptions,
     seconds: number,
     key?: string,
   ): Promise<string | null> {
@@ -71,15 +72,11 @@ export class JobService<JobData extends object> {
     return this.pgBoss.sendDebounced(this.name, data, options, seconds);
   }
 
-  async insert(jobs: Omit<PGBoss.JobInsert<JobData>, "name">[]): Promise<any> {
-    const _jobs: PGBoss.JobInsert<JobData>[] = jobs.map((job) => ({
-      ...job,
-      name: this.name,
-    }));
-    return this.pgBoss.insert(_jobs);
+  async insert(jobs: Omit<PgBossTypes.JobInsert, "name">[]): Promise<any> {
+    return this.pgBoss.insert(this.name, jobs);
   }
 
-  async schedule(cron: string, data: JobData, options: PGBoss.ScheduleOptions) {
+  async schedule(cron: string, data: JobData, options: PgBossTypes.ScheduleOptions) {
     return this.pgBoss.schedule(this.name, cron, data, options);
   }
 
@@ -89,11 +86,11 @@ export class JobService<JobData extends object> {
 }
 
 export interface WorkHandler<ReqData> {
-  (job?: PGBoss.Job<ReqData>): Promise<void>;
+  (job?: PgBossTypes.Job<ReqData>): Promise<void>;
 }
 
 export interface WorkHandlerBatch<ReqData> {
-  (jobs?: PGBoss.Job<ReqData>[]): Promise<void>;
+  (jobs?: PgBossTypes.Job<ReqData>[]): Promise<void>;
 }
 
 interface MethodDecorator<PropertyType> {
@@ -105,7 +102,7 @@ interface MethodDecorator<PropertyType> {
 }
 
 interface HandleDecorator<JobData extends object> {
-  <Options extends PGBoss.WorkOptions>(
+  <Options extends PgBossTypes.WorkOptions>(
     options?: Options,
   ): MethodDecorator<
     Options extends { batchSize: number }
@@ -128,11 +125,11 @@ export const createJob = <JobData extends object>(
   return {
     ServiceProvider: {
       provide: token,
-      useFactory: (pgBoss: PGBoss) => new JobService<JobData>(name, pgBoss),
-      inject: [PGBoss],
+      useFactory: (pgBoss: PgBoss) => new JobService<JobData>(name, pgBoss),
+      inject: [PgBoss],
     },
     Inject: () => Inject(token),
-    Handle: (options: PGBoss.WorkOptions = {}) =>
+    Handle: (options: PgBossTypes.WorkOptions = {}) =>
       SetMetadata<string, HandlerMetadata>(PG_BOSS_JOB_METADATA, {
         token,
         jobName: name,

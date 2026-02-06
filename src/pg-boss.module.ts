@@ -8,7 +8,7 @@ import {
   OnModuleInit,
 } from "@nestjs/common";
 import { MetadataScanner, ModuleRef } from "@nestjs/core";
-import * as PGBoss from "pg-boss";
+import { PgBoss } from "pg-boss";
 import { defer, lastValueFrom } from "rxjs";
 import { handleRetry } from "./utils";
 import { PGBossJobModule } from "./pg-boss-job.module";
@@ -31,7 +31,7 @@ export class PGBossModule
   implements OnModuleInit, OnApplicationBootstrap, OnModuleDestroy
 {
   private readonly logger = new Logger(this.constructor.name);
-  private instance: PGBoss;
+  private instance: PgBoss;
 
   constructor(
     private readonly moduleRef: ModuleRef,
@@ -42,7 +42,7 @@ export class PGBossModule
 
   static forRoot(options: typeof OPTIONS_TYPE): DynamicModule {
     const instanceProvider = {
-      provide: PGBoss,
+      provide: PgBoss,
       useFactory: async () => await this.createInstanceFactory(options),
     };
 
@@ -59,7 +59,7 @@ export class PGBossModule
 
   static forRootAsync(options: ASYNC_OPTIONS_TYPE): DynamicModule {
     const instanceProvider = {
-      provide: PGBoss,
+      provide: PgBoss,
       useFactory: async (pgBossModuleOptions: PGBossModuleOptions) => {
         if (options.application_name) {
           return await this.createInstanceFactory({
@@ -87,7 +87,7 @@ export class PGBossModule
 
   private static async createInstanceFactory(options: PGBossModuleOptions) {
     const pgBoss = await lastValueFrom(
-      defer(async () => new PGBoss(options).start()).pipe(
+      defer(async () => new PgBoss(options).start()).pipe(
         handleRetry(
           options.retryAttempts,
           options.retryDelay,
@@ -109,7 +109,7 @@ export class PGBossModule
   }
 
   onModuleInit() {
-    this.instance = this.moduleRef.get<PGBoss>(PGBoss);
+    this.instance = this.moduleRef.get<PgBoss>(PgBoss);
   }
 
   async onApplicationBootstrap(): Promise<void> {
